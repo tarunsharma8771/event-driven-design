@@ -1,170 +1,108 @@
 # Event-Driven Order Processing with RabbitMQ
 
-This project demonstrates how to build an **Event-Driven Architecture (EDA)** using **Java, Spring Boot, and RabbitMQ**.
+This project demonstrates an event-driven microservice workflow using Java, Spring Boot, RabbitMQ, Maven, Docker, and Docker Compose.
 
-The application showcases how multiple microservices can communicate asynchronously through events while remaining loosely coupled.
-
-The example implements an e-commerce workflow where:
+The sample e-commerce flow is:
 
 - An order is placed.
-- Payment processing and inventory reservation happen in parallel.
-- A notification is sent once payment is completed.
-
----
+- Payment processing and inventory reservation happen independently.
+- A notification is sent after payment is completed.
 
 ## Architecture Overview
 
-The system follows an event-driven approach where services communicate through RabbitMQ exchanges and queues instead of direct REST calls.
+Services communicate asynchronously through RabbitMQ exchanges and queues instead of direct REST calls.
 
 ```text
-                        OrderPlaced Event
-                                 |
-                                 v
-                    +----------------------+
-                    |    RabbitMQ Broker   |
-                    +----------------------+
-                             |
-              ---------------------------------
-              |                               |
-              v                               v
-      +---------------+              +----------------+
-      | Payment Queue |              | Inventory Queue|
-      +---------------+              +----------------+
-              |                               |
-              v                               v
-      +----------------+            +------------------+
-      | PaymentService |            | InventoryService |
-      +----------------+            +------------------+
-              |
-              | PaymentProcessed Event
-              v
-      +-------------------+
-      | paymentQueue      |
-      +-------------------+
-              |
-              v
-      +--------------------+
-      | NotificationService|
-      +--------------------+
+Client
+  |
+  | POST /orders
+  v
+Order Service
+  |
+  | orderPlaced
+  v
+orderExchange
+  |
+  +--> orderQueue -----> Payment Service
+  |
+  +--> inventoryQueue -> Inventory Service
+
+Payment Service
+  |
+  | paymentProcessed
+  v
+paymentExchange
+  |
+  +--> paymentQueue --> Notification Service
 ```
-
----
-
-## System Flow
-
-1. Client sends a `POST /orders` request.
-2. `OrderController` publishes an `OrderPlaced` event to RabbitMQ.
-3. RabbitMQ routes the event to multiple queues.
-4. `PaymentService` consumes the event and processes payment.
-5. `InventoryService` consumes the same event and reserves stock.
-6. Both services execute independently and in parallel.
-7. `PaymentService` publishes a `PaymentProcessed` event.
-8. `NotificationService` consumes the event.
-9. Notification is sent to the customer.
-
----
 
 ## Architecture Diagram
 
----![img.png](arch.png)
+![Architecture](arch.png)
 
----
-
-## Tech Stack
-
-- Java 25
-- Spring Boot 3.x
-- Spring AMQP
-- RabbitMQ
-- Maven
-- Docker
-- Docker Compose
-
----
-
-## Features
-
-✔ Event-Driven Architecture
-
-✔ Asynchronous communication
-
-✔ Loose coupling between services
-
-✔ Parallel event processing
-
-✔ RabbitMQ exchanges and queues
-
-✔ Producer/Consumer model
-
-✔ Publish-Subscribe pattern
-
----
-
-## Project Structure
+## Modules
 
 ```text
-src
-├── controller
-│   └── OrderController.java
-│
-├── config
-│   └── RabbitMQConfig.java
-│
-├── producer
-│   └── OrderProducer.java
-│
-├── listener
-│   ├── PaymentListener.java
-│   ├── InventoryListener.java
-│   └── NotificationListener.java
-│
-├── model
-│   ├── Order.java
-│   ├── Payment.java
-│   └── Inventory.java
-│
-└── Application.java
+event-driven-design
++-- common-events
+|   +-- Shared models, RabbitMQ topology constants, and RabbitTemplate config
++-- order-service
+|   +-- Exposes POST /orders and publishes orderPlaced events
++-- payment-service
+|   +-- Consumes order events and publishes paymentProcessed events
++-- inventory-service
+|   +-- Consumes order events and reserves stock
++-- notification-service
+|   +-- Consumes payment events and sends notifications
++-- docker-compose.yml
 ```
 
----
+## Shared Code
+
+The `common-events` module contains common code from the services.
+
+It contains:
+
+- `com.tks.common.model.Order`
+- `com.tks.common.model.Payment`
+- `com.tks.common.messaging.RabbitTopology`
+- `com.tks.common.config.CommonRabbitConfig`
+
+Each service depends on `common-events` and imports `CommonRabbitConfig`.
 
 ## RabbitMQ Components
 
 ### Exchanges
 
 | Exchange | Purpose |
-|-----------|---------|
-| orderExchange | Receives OrderPlaced events |
-| paymentExchange | Receives PaymentProcessed events |
+| --- | --- |
+| `orderExchange` | Receives `orderPlaced` events |
+| `paymentExchange` | Receives `paymentProcessed` events |
 
 ### Queues
 
 | Queue | Consumed By |
-|--------|------------|
-| orderQueue | Payment Service |
-| inventoryQueue | Inventory Service |
-| paymentQueue | Notification Service |
+| --- | --- |
+| `orderQueue` | Payment Service |
+| `inventoryQueue` | Inventory Service |
+| `paymentQueue` | Notification Service |
 
 ### Routing Keys
 
 | Routing Key | Description |
-|------------|-------------|
-| orderPlaced | New order created |
-| paymentProcessed | Payment successfully completed |
+| --- | --- |
+| `orderPlaced` | New order created |
+| `paymentProcessed` | Payment completed |
 
-## Configuration
+## Tech Stack
 
-```yaml
-spring:
-  rabbitmq:
-    host: rabbitmq
-    port: 5672
-    username: guest
-    password: guest
-```
-
----
----
+- Java 21
+- Spring Boot 3.2.x
+- Spring AMQP
+- RabbitMQ
+- Maven
+- Docker
+- Docker Compose
 
 ## Running the Application
 
@@ -175,71 +113,100 @@ spring:
 - Docker
 - Docker Compose
 
-### Clone the Repository
-
-```bash
-git clone https://github.com/tarunsharma8771/event-driven-design.git
-cd event-driven-design
-```
-
-### Build the Application
+### Build Locally
 
 ```bash
 mvn clean package
 ```
 
-### Start Using Docker Compose
+This builds all Maven modules:
+
+- `common-events`
+- `order-service`
+- `payment-service`
+- `notification-service`
+- `inventory-service`
+
+### Run with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+If your Docker installation uses the older standalone Compose command:
 
 ```bash
 docker-compose up --build
 ```
 
-### Access RabbitMQ Management UI
-
-http://localhost:15672
-
-Default credentials:
-
-- Username: guest
-- Password: guest
-
----
-
-## Testing the Flow
-
-Invoke:
+You can also skip the local Maven build and run only:
 
 ```bash
-postman request POST 'http://localhost:8081/orders' \
-  --header 'Content-Type: application/json' \
-  --body '{
-  "product": "Laptop",
-  "quantity": 2
-}'
+docker compose up --build
 ```
 
----
+Each service Dockerfile builds its service jar inside Docker using the Maven reactor. The `-am` Maven flag also builds required modules such as `common-events`.
 
-## Expected Console Output - Sample
+## Containers
+
+Docker Compose starts one container per service:
+
+| Container | Host Port |
+| --- | --- |
+| `order-service` | `8081` |
+| `payment-service` | `8082` |
+| `notification-service` | `8083` |
+| `inventory-service` | `8084` |
+| `rabbitmq` | `5672`, `15672` |
+
+RabbitMQ has a healthcheck. The application services wait for RabbitMQ to become healthy before starting.
+
+## Configuration
+
+RabbitMQ connection settings are provided through `docker-compose.yml` environment variables:
+
+```yaml
+SPRING_RABBITMQ_HOST: rabbitmq
+SPRING_RABBITMQ_PORT: 5672
+SPRING_RABBITMQ_USERNAME: guest
+SPRING_RABBITMQ_PASSWORD: guest
+```
+
+## Test the Flow
+
+Send an order request:
+
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{"product":"Laptop","quantity":2}'
+```
+
+Expected response:
 
 ```text
-order-service-1         | Order received with ID: 4f43c277-901b-454b-8aae-ec292dbc6d69
-payment-service-1       | Initiating payment for order ID: 4f43c277-901b-454b-8aae-ec292dbc6d69
-inventory-service-1     | Reserving order with ID: 4f43c277-901b-454b-8aae-ec292dbc6d69
-payment-service-1       | Payment completed for order ID: 4f43c277-901b-454b-8aae-ec292dbc6d69
-notification-service-1  | Notification sent for order ID: 4f43c277-901b-454b-8aae-ec292dbc6d69 has status SUCCESS
+Order placed with ID: <generated-order-id>
 ```
 
----
+Expected logs:
 
+```text
+order-service         | Order received with ID: <order-id>
+payment-service       | Initiating payment for order ID: <order-id>
+inventory-service     | Reserving order with ID: <order-id>
+payment-service       | Payment completed for order ID: <order-id>
+notification-service  | Notification sent for order ID: <order-id> has status SUCCESS
+```
 
-RabbitMQ Management UI:
+## RabbitMQ Management UI
+
+Open:
 
 ```text
 http://localhost:15672
 ```
 
-Default Credentials:
+Default credentials:
 
 ```text
 Username: guest
@@ -248,52 +215,26 @@ Password: guest
 
 ## Key Concepts Demonstrated
 
-- Event-Driven Architecture
-- Producer/Consumer Pattern
-- Publish-Subscribe Pattern
-- Asynchronous Messaging
-- Loose Coupling
-- Parallel Processing
-- Message Routing
-- RabbitMQ Exchanges
-- RabbitMQ Queues
-
----
+- Event-driven architecture
+- Producer/consumer messaging
+- Publish-subscribe routing
+- Asynchronous service communication
+- Loose coupling between services
+- Parallel event processing
+- Shared event contracts
+- RabbitMQ exchanges, queues, bindings, and routing keys
 
 ## Future Enhancements
 
-- Dead Letter Queue (DLQ)
-- Retry Mechanism
-- Idempotency Handling
-- Shipping Service
-- Distributed Tracing
-- OpenTelemetry Integration
-- Persistent Storage
-- Saga Pattern Implementation
-
----
-
-## Learning Objectives
-
-After exploring this project, you will understand:
-
-- How RabbitMQ works.
-- How exchanges route messages.
-- How multiple consumers process events in parallel.
-- How Event-Driven Architecture improves scalability.
-- How microservices communicate asynchronously.
-
----
-
-## Contributing
-
-Contributions are welcome.
-
-Feel free to fork the repository and submit pull requests.
-
----
+- Dead letter queues
+- Retry mechanism
+- Idempotency handling
+- Shipping service
+- Distributed tracing
+- OpenTelemetry integration
+- Persistent storage
+- Saga pattern implementation
 
 ## License
 
 This project is licensed under the MIT License.
-
