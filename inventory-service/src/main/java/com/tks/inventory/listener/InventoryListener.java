@@ -1,16 +1,14 @@
 package com.tks.inventory.listener;
 
-import com.tks.inventory.model.Order;
+import com.tks.common.messaging.RabbitTopology;
+import com.tks.common.model.Order;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-
-;
 
 @Component
 public class InventoryListener {
 
-    // Listen to inventoryQueue
-    @RabbitListener(queues = "inventoryQueue")
+    @RabbitListener(queues = RabbitTopology.INVENTORY_QUEUE)
     public void reserveStock(Order order) {
         System.out.println("Reserving order with ID: " + order.getId());
         try {
@@ -18,6 +16,5 @@ public class InventoryListener {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        // Add logic here to update inventory DB or service
     }
 }

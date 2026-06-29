@@ -1,8 +1,8 @@
 package com.tks.order.controller;
 
-import com.tks.order.model.Order;
+import com.tks.common.messaging.RabbitTopology;
+import com.tks.common.model.Order;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -12,12 +12,6 @@ import java.util.UUID;
 public class OrderController {
 
     private final RabbitTemplate rabbitTemplate;
-
-    @Value("${order.exchange:orderExchange}")
-    private String exchange;
-
-    @Value("${order.routingKey:orderPlaced}")
-    private String routingKey;
 
     public OrderController(RabbitTemplate rabbitTemplate) {
         this.rabbitTemplate = rabbitTemplate;
@@ -32,7 +26,10 @@ public class OrderController {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        rabbitTemplate.convertAndSend(exchange, routingKey, order);
+        rabbitTemplate.convertAndSend(
+                RabbitTopology.ORDER_EXCHANGE,
+                RabbitTopology.ORDER_PLACED_ROUTING_KEY,
+                order);
         return "Order placed with ID: " + order.getId();
     }
 }
