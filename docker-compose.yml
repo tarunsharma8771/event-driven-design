@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  rabbitmq:
+    #pulls the RabbitMQ image with the management plugin enabled (so you get the web UI)
+    image: rabbitmq:3-management
+    #names the container rabbitmq. Other services can connect using this hostname.
+    container_name: rabbitmq
+    ports:
+      #exposes the AMQP port (used by your Java services to send/receive messages).
+      - "5672:5672"
+      #exposes the management UI (so you can open http://localhost:15672 in your browser).
+      - "15672:15672"
+    #sets the default username and password (guest/guest) for RabbitMQ.
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  order-service:
+    # tells Docker Compose to build an image from the Dockerfile inside the order-service folder.
+    build: ./order-service
+    #ensures RabbitMQ starts before Order Service (so it doesn’t crash immediately).
+    depends_on:
+      - rabbitmq
+    #sets an environment variable inside the container.
+    #Spring Boot app reads this in application.yml (host: ${RABBIT_HOST:rabbitmq}), so it connects to RabbitMQ using the container name rabbitmq.
+    environment:
+      - RABBIT_HOST=rabbitmq
+    ports:
+      - "8081:8080"
+
+  payment-service:
+    build: ./payment-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBIT_HOST=rabbitmq
+    ports:
+      - "8082:8080"
+  notification-service:
+    build: ./notification-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBIT_HOST=rabbitmq
+    ports:
+      - "8083:8080"
+  inventory-service:
+    build: ./inventory-service
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBIT_HOST=rabbitmq
+    ports:
+      - "8084:8080"

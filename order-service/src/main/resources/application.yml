@@ -1,0 +1,17 @@
+spring:
+  rabbitmq:
+    # Hostname of the RabbitMQ broker.
+    # Uses environment variable RABBIT_HOST if set; defaults to 'rabbitmq' (the container name in Docker Compose).
+    host: ${RABBIT_HOST:rabbitmq}
+
+    # Port number for AMQP protocol.
+    # 5672 is RabbitMQ’s default port for message communication between services.
+    port: 5672
+
+    # Username for authentication.
+    # 'guest' is the default user created by RabbitMQ (set in docker-compose environment).
+    username: guest
+
+    # Password for authentication.
+    # 'guest' is the default password paired with the guest user.
+    password: guest
