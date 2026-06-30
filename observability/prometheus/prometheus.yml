@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  # Prometheus runs inside Docker Compose, so it reaches services by container name.
+  - job_name: spring-boot-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - order-service:8080
+          - payment-service:8080
+          - notification-service:8080
+          - inventory-service:8080
+
+  - job_name: rabbitmq
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - rabbitmq:15692

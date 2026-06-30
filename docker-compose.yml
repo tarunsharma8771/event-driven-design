@@ -4,14 +4,18 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
+    command: sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus && rabbitmq-server"
     ports:
       # AMQP port used by Spring AMQP/RabbitTemplate.
       - "5672:5672"
       # RabbitMQ Management UI: http://localhost:15672
       - "15672:15672"
+      # RabbitMQ Prometheus metrics endpoint.
+      - "15692:15692"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_prometheus tcp_config [{port,15692}]"
     healthcheck:
       # Compose waits for this healthcheck before starting application services.
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
@@ -39,6 +43,12 @@ services:
       SPRING_RABBITMQ_PASSWORD: guest
       # Log4j2 writes service log files inside the container at /logs.
       LOG_DIR: /logs
+      # Exposes Spring Boot Actuator health, info, and metrics endpoints.
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_INFO_ENV_ENABLED: true
+      INFO_APP_NAME: order-service
+      INFO_APP_DESCRIPTION: Publishes orderPlaced events
     ports:
       - "8081:8080"
     volumes:
@@ -61,6 +71,11 @@ services:
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
       LOG_DIR: /logs
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_INFO_ENV_ENABLED: true
+      INFO_APP_NAME: payment-service
+      INFO_APP_DESCRIPTION: Processes order payments
     ports:
       - "8082:8080"
     volumes:
@@ -82,6 +97,11 @@ services:
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
       LOG_DIR: /logs
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_INFO_ENV_ENABLED: true
+      INFO_APP_NAME: notification-service
+      INFO_APP_DESCRIPTION: Sends payment notifications
     ports:
       - "8083:8080"
     volumes:
@@ -103,7 +123,69 @@ services:
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
       LOG_DIR: /logs
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_INFO_ENV_ENABLED: true
+      INFO_APP_NAME: inventory-service
+      INFO_APP_DESCRIPTION: Reserves inventory for orders
     ports:
       - "8084:8080"
     volumes:
       - ./logs/inventory-service:/logs
+
+  # Scrapes Prometheus-format metrics from each Spring Boot service.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    depends_on:
+      - order-service
+      - payment-service
+      - notification-service
+      - inventory-service
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # Visualizes metrics from Prometheus in dashboards.
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    depends_on:
+      - prometheus
+      - loki
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  # Stores logs pushed by Promtail and makes them queryable from Grafana.
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki/loki.yml:/etc/loki/local-config.yml:ro
+      - loki-data:/loki
+
+  # Reads service log files from ./logs and pushes them to Loki.
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: promtail
+    depends_on:
+      - loki
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - ./logs:/var/log/event-driven-design:ro
+
+volumes:
+  grafana-data:
+  loki-data:
