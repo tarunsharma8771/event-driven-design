@@ -38,7 +38,7 @@ paymentExchange
 
 ## Architecture Diagram
 
-![Architecture](arch.png)
+![Architecture](docs/images/arch.png)
 
 ## Modules
 

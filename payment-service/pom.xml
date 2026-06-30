@@ -39,6 +39,24 @@
             </exclusions>
         </dependency>
 
+        <!-- Spring Boot Actuator: health, info, and runtime metrics endpoints -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Exposes Actuator metrics in Prometheus format at /actuator/prometheus -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- RabbitMQ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
