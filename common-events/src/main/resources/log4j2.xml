@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <!-- Single log format shared by all services. APP_NAME comes from SPRING_APPLICATION_NAME in docker-compose.yml. -->
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [${env:SPRING_APPLICATION_NAME:-application}] [%t] %c{1.} - %m%n</Property>
+        <!-- Used to create one file per service, for example /logs/order-service.log. -->
+        <Property name="APP_NAME">${env:SPRING_APPLICATION_NAME:-application}</Property>
+        <!-- In Docker this is /logs. Locally it falls back to ./logs. -->
+        <Property name="LOG_DIR">${env:LOG_DIR:-logs}</Property>
+    </Properties>
+
+    <Appenders>
+        <!-- Keeps logs visible through docker compose logs and the container console. -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+        </Console>
+
+        <!-- Writes physical log files and rolls them daily or when they reach 10 MB. -->
+        <RollingFile name="File"
+                     fileName="${LOG_DIR}/${APP_NAME}.log"
+                     filePattern="${LOG_DIR}/archive/${APP_NAME}-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <!-- Keep the latest 7 rolled log files per service. -->
+            <DefaultRolloverStrategy max="7"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <!-- Application logs from com.tks.* go to both console and file. -->
+        <Logger name="com.tks" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+
+        <!-- Framework and dependency logs also go to both appenders at INFO level. -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Root>
+    </Loggers>
+</Configuration>

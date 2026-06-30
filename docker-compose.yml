@@ -1,21 +1,28 @@
 services:
+  # RabbitMQ is the message broker used by all Spring Boot services.
+  # Services connect to it through the Docker network hostname "rabbitmq".
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
+      # AMQP port used by Spring AMQP/RabbitTemplate.
       - "5672:5672"
+      # RabbitMQ Management UI: http://localhost:15672
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
+      # Compose waits for this healthcheck before starting application services.
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # REST entrypoint. Publishes orderPlaced events to RabbitMQ.
   order-service:
     build:
+      # Root context is required because service Dockerfiles build common-events too.
       context: .
       dockerfile: order-service/Dockerfile
     container_name: order-service
@@ -23,14 +30,22 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
+      # Used by Spring Boot and Log4j2 to identify this service in logs.
       SPRING_APPLICATION_NAME: order-service
+      # Spring Boot maps these env vars to spring.rabbitmq.* properties.
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # Log4j2 writes service log files inside the container at /logs.
+      LOG_DIR: /logs
     ports:
       - "8081:8080"
+    volumes:
+      # Persists container log files on the host machine.
+      - ./logs/order-service:/logs
 
+  # Consumes orderPlaced events and publishes paymentProcessed events.
   payment-service:
     build:
       context: .
@@ -45,9 +60,13 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      LOG_DIR: /logs
     ports:
       - "8082:8080"
+    volumes:
+      - ./logs/payment-service:/logs
 
+  # Consumes paymentProcessed events and logs/sends notification.
   notification-service:
     build:
       context: .
@@ -62,9 +81,13 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      LOG_DIR: /logs
     ports:
       - "8083:8080"
+    volumes:
+      - ./logs/notification-service:/logs
 
+  # Consumes orderPlaced events independently from payment-service.
   inventory-service:
     build:
       context: .
@@ -79,5 +102,8 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      LOG_DIR: /logs
     ports:
       - "8084:8080"
+    volumes:
+      - ./logs/inventory-service:/logs
